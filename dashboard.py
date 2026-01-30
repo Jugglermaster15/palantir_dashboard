@@ -190,7 +190,7 @@ if data and 'last_updated' in data:
     st.caption(f"Data last updated: {data['last_updated'].strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ==================================================================
-# TAB 1 — PRICE & PERFORMANCE (FIXED)
+# TAB 1 — PRICE & PERFORMANCE (WITH CANDLESTICKS AND PROPER COMPARISON)
 # ==================================================================
 with tab1:
     st.subheader("Stock Price Evolution")
@@ -199,34 +199,45 @@ with tab1:
         # Make a copy to avoid modifying cached data
         price_data_copy = price_data.copy()
         
-        # Calculate meaningful moving averages (ensure we have enough data)
-        if len(price_data_copy) >= 50:
-            price_data_copy["MA_50"] = price_data_copy["Close"].rolling(window=50, min_periods=1).mean()
-        else:
-            price_data_copy["MA_50"] = price_data_copy["Close"]
-            
+        # Calculate moving averages for 7, 50, and 200 days
+        # Use min_periods=1 to start calculating from first available data point
+        price_data_copy["MA_7"] = price_data_copy["Close"].rolling(window=7, min_periods=1).mean()
+        price_data_copy["MA_50"] = price_data_copy["Close"].rolling(window=50, min_periods=1).mean()
+        
+        # For 200-day MA, we need at least 200 data points for accurate calculation
         if len(price_data_copy) >= 200:
             price_data_copy["MA_200"] = price_data_copy["Close"].rolling(window=200, min_periods=1).mean()
         else:
-            # If not enough data for 200MA, use a longer period MA or skip
+            # If not enough data, use available data for longer MA
             price_data_copy["MA_200"] = price_data_copy["Close"].rolling(window=min(100, len(price_data_copy)), min_periods=1).mean()
         
-        # Create the price chart with candlestick for better visualization
-        fig = go.Figure()
+        # CHART 1: Palantir Candlestick with 7, 50, 200-day Moving Averages
+        fig1 = go.Figure()
         
-        # Add candlestick chart for more detailed price action
-        fig.add_trace(go.Candlestick(
+        # Add candlestick chart
+        fig1.add_trace(go.Candlestick(
             x=price_data_copy.index,
             open=price_data_copy['Open'],
             high=price_data_copy['High'],
             low=price_data_copy['Low'],
             close=price_data_copy['Close'],
-            name="Price",
-            visible=True  # Can be toggled
+            name="PLTR Price",
+            increasing_line_color='#26a69a',  # Green for up
+            decreasing_line_color='#ef5350',  # Red for down
+            visible=True
         ))
         
-        # Add moving averages
-        fig.add_trace(go.Scatter(
+        # Add 7-day moving average
+        fig1.add_trace(go.Scatter(
+            x=price_data_copy.index,
+            y=price_data_copy["MA_7"],
+            name="7-Day MA",
+            line=dict(color='yellow', width=1.5),
+            visible=True
+        ))
+        
+        # Add 50-day moving average
+        fig1.add_trace(go.Scatter(
             x=price_data_copy.index,
             y=price_data_copy["MA_50"],
             name="50-Day MA",
@@ -234,131 +245,285 @@ with tab1:
             visible=True
         ))
         
-        fig.add_trace(go.Scatter(
+        # Add 200-day moving average
+        fig1.add_trace(go.Scatter(
             x=price_data_copy.index,
             y=price_data_copy["MA_200"],
             name="200-Day MA",
-            line=dict(color='red', width=2),
+            line=dict(color='blue', width=2.5),
             visible=True
         ))
         
-        # Add volume as a subplot
-        fig.add_trace(go.Bar(
+        # Add volume as a subplot (optional)
+        fig1.add_trace(go.Bar(
             x=price_data_copy.index,
             y=price_data_copy['Volume'],
             name="Volume",
             yaxis="y2",
             marker_color='rgba(100, 100, 100, 0.3)',
-            visible='legendonly'  # Hidden by default
+            visible='legendonly'  # Hidden by default, can be toggled
         ))
 
-        fig.update_layout(
-            title="Palantir (PLTR) Stock Price with Moving Averages",
+        fig1.update_layout(
+            title="Palantir (PLTR) - Candlestick Chart with Moving Averages",
             height=600,
             yaxis_title="Price (USD)",
             xaxis_title="Date",
             hovermode='x unified',
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                bgcolor='rgba(255, 255, 255, 0.8)'
+            ),
             yaxis2=dict(
                 title="Volume",
                 overlaying="y",
                 side="right",
                 showgrid=False
             ),
-            xaxis_rangeslider_visible=False  # Hide the range slider at bottom
+            xaxis_rangeslider_visible=True,  # Show range slider at bottom
+            plot_bgcolor='rgba(240, 240, 240, 0.8)'
         )
         
-        # Add some buttons for different views
-        fig.update_xaxes(
-            rangeslider_visible=False,
+        # Add time period selector buttons
+        fig1.update_xaxes(
+            rangeslider_visible=True,
             rangeselector=dict(
                 buttons=list([
-                    dict(count=1, label="1m", step="month", stepmode="backward"),
-                    dict(count=6, label="6m", step="month", stepmode="backward"),
+                    dict(count=1, label="1M", step="month", stepmode="backward"),
+                    dict(count=3, label="3M", step="month", stepmode="backward"),
+                    dict(count=6, label="6M", step="month", stepmode="backward"),
                     dict(count=1, label="YTD", step="year", stepmode="todate"),
-                    dict(count=1, label="1y", step="year", stepmode="backward"),
-                    dict(count=5, label="5y", step="year", stepmode="backward"),
-                    dict(step="all")
-                ])
+                    dict(count=1, label="1Y", step="year", stepmode="backward"),
+                    dict(count=5, label="5Y", step="year", stepmode="backward"),
+                    dict(step="all", label="All")
+                ]),
+                bgcolor='rgba(200, 200, 200, 0.3)'
             )
         )
 
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig1, use_container_width=True)
         
         # Performance metrics
+        st.subheader("Performance Metrics")
         col1, col2, col3, col4 = st.columns(4)
         
         if len(price_data_copy) > 0:
             current_price = price_data_copy["Close"].iloc[-1]
+            current_date = price_data_copy.index[-1].strftime('%Y-%m-%d')
+            
+            # Calculate price changes
             price_1d_ago = price_data_copy["Close"].iloc[-2] if len(price_data_copy) > 1 else current_price
+            price_1w_ago = price_data_copy["Close"].iloc[-7] if len(price_data_copy) > 7 else current_price
             price_1m_ago = price_data_copy["Close"].iloc[-22] if len(price_data_copy) > 22 else current_price
             price_1y_ago = price_data_copy["Close"].iloc[-252] if len(price_data_copy) > 252 else current_price
             
             daily_change = ((current_price - price_1d_ago) / price_1d_ago * 100) if price_1d_ago > 0 else 0
+            weekly_change = ((current_price - price_1w_ago) / price_1w_ago * 100) if price_1w_ago > 0 else 0
             monthly_change = ((current_price - price_1m_ago) / price_1m_ago * 100) if price_1m_ago > 0 else 0
             yearly_change = ((current_price - price_1y_ago) / price_1y_ago * 100) if price_1y_ago > 0 else 0
             
             # Calculate 52-week high/low
             if len(price_data_copy) >= 252:
-                week_52_high = price_data_copy["High"].tail(252).max()
-                week_52_low = price_data_copy["Low"].tail(252).min()
+                week_52_data = price_data_copy["Close"].tail(252)
+                week_52_high = week_52_data.max()
+                week_52_low = week_52_data.min()
             else:
                 week_52_high = price_data_copy["High"].max()
                 week_52_low = price_data_copy["Low"].min()
             
-            col1.metric("Current Price", f"${current_price:.2f}", f"{daily_change:+.2f}%")
-            col2.metric("1-Month Change", f"{monthly_change:+.1f}%")
-            col3.metric("1-Year Change", f"{yearly_change:+.1f}%")
-            col4.metric("52-Week Range", f"${week_52_low:.1f} - ${week_52_high:.1f}")
+            col1.metric(
+                f"Current Price\n({current_date})", 
+                f"${current_price:.2f}",
+                f"{daily_change:+.2f}%",
+                delta_color="normal"
+            )
+            col2.metric("Weekly Change", f"{weekly_change:+.1f}%")
+            col3.metric("Monthly Change", f"{monthly_change:+.1f}%")
+            col4.metric("Yearly Change", f"{yearly_change:+.1f}%")
+            
+            # Additional metrics
+            st.subheader("Key Levels")
+            col5, col6, col7, col8 = st.columns(4)
+            
+            # Current vs Moving Averages
+            ma_7_current = price_data_copy["MA_7"].iloc[-1]
+            ma_50_current = price_data_copy["MA_50"].iloc[-1]
+            ma_200_current = price_data_copy["MA_200"].iloc[-1]
+            
+            vs_ma7 = ((current_price - ma_7_current) / ma_7_current * 100) if ma_7_current > 0 else 0
+            vs_ma50 = ((current_price - ma_50_current) / ma_50_current * 100) if ma_50_current > 0 else 0
+            vs_ma200 = ((current_price - ma_200_current) / ma_200_current * 100) if ma_200_current > 0 else 0
+            
+            col5.metric("vs 7-Day MA", f"{vs_ma7:+.1f}%")
+            col6.metric("vs 50-Day MA", f"{vs_ma50:+.1f}%")
+            col7.metric("vs 200-Day MA", f"{vs_ma200:+.1f}%")
+            col8.metric("52-Week Range", f"${week_52_low:.1f} - ${week_52_high:.1f}")
         
         # Performance comparison with S&P 500
-        st.subheader("Palantir vs S&P 500 Performance Comparison")
+        st.subheader("Performance Comparison: PLTR vs S&P 500")
         
-        if sp500_data is not None and len(sp500_data) > 100:
-            # Ensure we have common date range
-            common_dates = price_data_copy.index.intersection(sp500_data.index)
+        if sp500_data is not None and len(sp500_data) > 0:
+            # Filter data from July 2020 onwards
+            start_date = pd.Timestamp("2020-07-01")
             
-            if len(common_dates) > 0:
-                # Normalize both series to starting point
-                pltr_normalized = price_data_copy.loc[common_dates, "Close"] / price_data_copy.loc[common_dates, "Close"].iloc[0]
-                sp500_normalized = sp500_data.loc[common_dates, "Close"] / sp500_data.loc[common_dates, "Close"].iloc[0]
+            # Filter PLTR data
+            pltr_filtered = price_data_copy.loc[start_date:].copy()
+            
+            # Filter S&P 500 data
+            sp500_filtered = sp500_data.loc[start_date:].copy()
+            
+            # Ensure we have data for both
+            if len(pltr_filtered) > 0 and len(sp500_filtered) > 0:
+                # Get common dates
+                common_dates = pltr_filtered.index.intersection(sp500_filtered.index)
                 
-                comparison_df = pd.DataFrame({
-                    'Date': common_dates,
-                    'Palantir (PLTR)': pltr_normalized.values,
-                    'S&P 500': sp500_normalized.values
-                })
-                
-                fig2 = px.line(
-                    comparison_df,
-                    x='Date',
-                    y=['Palantir (PLTR)', 'S&P 500'],
-                    title='Normalized Performance Comparison (Base = 1.0)',
-                    labels={'value': 'Normalized Return', 'variable': 'Index'},
-                    color_discrete_map={'Palantir (PLTR)': 'blue', 'S&P 500': 'gray'}
-                )
-                
-                fig2.update_layout(
-                    height=400,
-                    hovermode='x unified',
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                )
-                
-                st.plotly_chart(fig2, use_container_width=True)
-                
-                # Calculate performance statistics
-                pltr_return = (pltr_normalized.iloc[-1] - 1) * 100
-                sp500_return = (sp500_normalized.iloc[-1] - 1) * 100
-                outperformance = pltr_return - sp500_return
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("PLTR Total Return", f"{pltr_return:+.1f}%")
-                col2.metric("S&P 500 Total Return", f"{sp500_return:+.1f}%")
-                col3.metric("Outperformance", f"{outperformance:+.1f}%", 
-                           delta_color="normal" if outperformance > 0 else "inverse")
+                if len(common_dates) > 0:
+                    # Get closing prices for common dates
+                    pltr_close = pltr_filtered.loc[common_dates, "Close"]
+                    sp500_close = sp500_filtered.loc[common_dates, "Close"]
+                    
+                    # Normalize both series to 100 at the starting point
+                    pltr_normalized = (pltr_close / pltr_close.iloc[0]) * 100
+                    sp500_normalized = (sp500_close / sp500_close.iloc[0]) * 100
+                    
+                    # Create comparison DataFrame
+                    comparison_df = pd.DataFrame({
+                        'Date': common_dates,
+                        'Palantir (PLTR)': pltr_normalized.values,
+                        'S&P 500': sp500_normalized.values
+                    })
+                    
+                    # CHART 2: Performance Comparison (using plotly.graph_objects for better control)
+                    fig2 = go.Figure()
+                    
+                    # Add PLTR line
+                    fig2.add_trace(go.Scatter(
+                        x=comparison_df['Date'],
+                        y=comparison_df['Palantir (PLTR)'],
+                        name='Palantir (PLTR)',
+                        mode='lines',
+                        line=dict(color='blue', width=3),
+                        hovertemplate='<b>PLTR</b><br>Date: %{x}<br>Normalized: %{y:.1f}<extra></extra>'
+                    ))
+                    
+                    # Add S&P 500 line
+                    fig2.add_trace(go.Scatter(
+                        x=comparison_df['Date'],
+                        y=comparison_df['S&P 500'],
+                        name='S&P 500',
+                        mode='lines',
+                        line=dict(color='gray', width=2, dash='dash'),
+                        hovertemplate='<b>S&P 500</b><br>Date: %{x}<br>Normalized: %{y:.1f}<extra></extra>'
+                    ))
+                    
+                    # Add shaded area for outperformance/underperformance
+                    # Find where PLTR outperforms S&P 500
+                    pltr_higher = comparison_df['Palantir (PLTR)'] > comparison_df['S&P 500']
+                    sp500_higher = comparison_df['S&P 500'] > comparison_df['Palantir (PLTR)']
+                    
+                    # Add fill between lines
+                    fig2.add_trace(go.Scatter(
+                        x=comparison_df['Date'],
+                        y=comparison_df['Palantir (PLTR)'],
+                        fill='tonexty',
+                        fillcolor='rgba(0, 100, 255, 0.2)',
+                        line=dict(width=0),
+                        showlegend=False,
+                        name='PLTR Outperforming'
+                    ))
+                    
+                    fig2.update_layout(
+                        title='Normalized Performance Comparison: PLTR vs S&P 500 (Base = 100)',
+                        yaxis_title='Normalized Performance (Base = 100)',
+                        height=500,
+                        hovermode='x unified',
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        ),
+                        xaxis=dict(
+                            rangeslider=dict(visible=False),
+                            rangeselector=dict(
+                                buttons=list([
+                                    dict(count=6, label="6M", step="month", stepmode="backward"),
+                                    dict(count=1, label="1Y", step="year", stepmode="backward"),
+                                    dict(count=2, label="2Y", step="year", stepmode="backward"),
+                                    dict(step="all", label="All")
+                                ])
+                            )
+                        )
+                    )
+                    
+                    st.plotly_chart(fig2, use_container_width=True)
+                    
+                    # Calculate and display performance statistics
+                    pltr_total_return = ((pltr_normalized.iloc[-1] - 100) / 100) * 100
+                    sp500_total_return = ((sp500_normalized.iloc[-1] - 100) / 100) * 100
+                    outperformance = pltr_total_return - sp500_total_return
+                    
+                    # Additional metrics
+                    pltr_high = pltr_normalized.max()
+                    pltr_low = pltr_normalized.min()
+                    sp500_high = sp500_normalized.max()
+                    sp500_low = sp500_normalized.min()
+                    
+                    st.subheader("Performance Statistics (Since July 2020)")
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    col1.metric(
+                        "PLTR Total Return", 
+                        f"{pltr_total_return:+.1f}%",
+                        delta_color="normal"
+                    )
+                    col2.metric(
+                        "S&P 500 Total Return", 
+                        f"{sp500_total_return:+.1f}%",
+                        delta_color="normal"
+                    )
+                    col3.metric(
+                        "Outperformance", 
+                        f"{outperformance:+.1f}%",
+                        delta_color="normal" if outperformance > 0 else "inverse"
+                    )
+                    col4.metric(
+                        "Analysis Period", 
+                        f"{len(common_dates):,} days"
+                    )
+                    
+                    # More detailed statistics
+                    st.subheader("Detailed Performance Analysis")
+                    col5, col6, col7, col8 = st.columns(4)
+                    
+                    # Calculate annualized returns
+                    years_elapsed = len(common_dates) / 252  # Approximate trading days per year
+                    pltr_annualized = ((1 + pltr_total_return/100) ** (1/years_elapsed) - 1) * 100 if years_elapsed > 0 else 0
+                    sp500_annualized = ((1 + sp500_total_return/100) ** (1/years_elapsed) - 1) * 100 if years_elapsed > 0 else 0
+                    
+                    col5.metric("PLTR Annualized", f"{pltr_annualized:+.1f}%")
+                    col6.metric("S&P 500 Annualized", f"{sp500_annualized:+.1f}%")
+                    col7.metric("PLTR Max (Normalized)", f"{pltr_high:.1f}")
+                    col8.metric("S&P 500 Max", f"{sp500_high:.1f}")
+                    
+                    # Correlation analysis
+                    correlation = pltr_normalized.corr(sp500_normalized)
+                    
+                    st.info(f"📊 **Correlation Analysis**: PLTR and S&P 500 have a correlation coefficient of **{correlation:.3f}** " +
+                           f"({'highly correlated' if correlation > 0.7 else 'moderately correlated' if correlation > 0.3 else 'weakly correlated'}) " +
+                           f"since July 2020.")
+                    
+                else:
+                    st.warning("No overlapping trading dates between PLTR and S&P 500 data after July 2020")
             else:
-                st.warning("No overlapping dates between PLTR and S&P 500 data")
+                st.warning(f"Insufficient data for comparison since July 2020. PLTR: {len(pltr_filtered)} days, S&P 500: {len(sp500_filtered)} days")
         else:
             st.warning("S&P 500 comparison data not available")
             
@@ -514,3 +679,4 @@ with tab4:
 # Add requirements note at the bottom
 st.sidebar.markdown("---")
 st.sidebar.caption("Note: Data sourced from Yahoo Finance. May be delayed or incomplete.")
+
