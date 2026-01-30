@@ -199,8 +199,11 @@ with tab1:
         # Make a copy to avoid modifying cached data
         price_data_copy = price_data.copy()
         
+        # Ensure the index is timezone-naive for consistent slicing
+        if price_data_copy.index.tz is not None:
+            price_data_copy.index = price_data_copy.index.tz_localize(None)
+        
         # Calculate moving averages for 7, 50, and 200 days
-        # Use min_periods=1 to start calculating from first available data point
         price_data_copy["MA_7"] = price_data_copy["Close"].rolling(window=7, min_periods=1).mean()
         price_data_copy["MA_50"] = price_data_copy["Close"].rolling(window=50, min_periods=1).mean()
         
@@ -368,18 +371,22 @@ with tab1:
         st.subheader("Performance Comparison: PLTR vs S&P 500")
         
         if sp500_data is not None and len(sp500_data) > 0:
-            # Filter data from July 2020 onwards
-            start_date = pd.Timestamp("2020-07-01")
+            # Ensure S&P 500 data is timezone-naive
+            if sp500_data.index.tz is not None:
+                sp500_data.index = sp500_data.index.tz_localize(None)
             
-            # Filter PLTR data
-            pltr_filtered = price_data_copy.loc[start_date:].copy()
+            # Filter data from July 2020 onwards - use string date to avoid timezone issues
+            start_date_str = "2020-07-01"
+            
+            # Filter PLTR data (using timezone-naive index)
+            pltr_filtered = price_data_copy.loc[start_date_str:].copy()
             
             # Filter S&P 500 data
-            sp500_filtered = sp500_data.loc[start_date:].copy()
+            sp500_filtered = sp500_data.loc[start_date_str:].copy()
             
             # Ensure we have data for both
             if len(pltr_filtered) > 0 and len(sp500_filtered) > 0:
-                # Get common dates
+                # Get common dates (ensure both are timezone-naive)
                 common_dates = pltr_filtered.index.intersection(sp500_filtered.index)
                 
                 if len(common_dates) > 0:
@@ -398,7 +405,7 @@ with tab1:
                         'S&P 500': sp500_normalized.values
                     })
                     
-                    # CHART 2: Performance Comparison (using plotly.graph_objects for better control)
+                    # CHART 2: Performance Comparison
                     fig2 = go.Figure()
                     
                     # Add PLTR line
@@ -422,11 +429,6 @@ with tab1:
                     ))
                     
                     # Add shaded area for outperformance/underperformance
-                    # Find where PLTR outperforms S&P 500
-                    pltr_higher = comparison_df['Palantir (PLTR)'] > comparison_df['S&P 500']
-                    sp500_higher = comparison_df['S&P 500'] > comparison_df['Palantir (PLTR)']
-                    
-                    # Add fill between lines
                     fig2.add_trace(go.Scatter(
                         x=comparison_df['Date'],
                         y=comparison_df['Palantir (PLTR)'],
@@ -531,7 +533,6 @@ with tab1:
         st.warning("Insufficient price data available for detailed analysis")
         if price_data is not None:
             st.write(f"Only {len(price_data)} data points available")
-
 # ==================================================================
 # TAB 2 — FINANCIAL HEALTH
 # ==================================================================
@@ -679,4 +680,5 @@ with tab4:
 # Add requirements note at the bottom
 st.sidebar.markdown("---")
 st.sidebar.caption("Note: Data sourced from Yahoo Finance. May be delayed or incomplete.")
+
 
